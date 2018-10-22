@@ -9,7 +9,16 @@ import services.xis.crawl.CrawlUtil._
 object Main {
   def main(args: Array[String]): Unit = {
     implicit val cookies: Cookie = MMap()
+
     login
-    println(getMax("today_notice"))
+    for (
+      max <- getMaxOfToday();
+      num <- 1 to max;
+      bid <- getIdsFromToday(num)
+    ) bid match {
+      case (board, id) =>
+        println(board)
+        println(id)
+    }
   }
 }
