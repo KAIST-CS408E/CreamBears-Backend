@@ -9,5 +9,7 @@ lazy val root = (project in file("."))
       version      := "0.0"
     )),
     name := "xis-elastic",
-    libraryDependencies += scalaTest % Test
+    javacOptions ++= Seq("-encoding", "UTF-8"),
+    libraryDependencies += scalaTest % Test,
+    libraryDependencies += elasticSearch
   )
