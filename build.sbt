@@ -2,6 +2,7 @@ import Dependencies._
 
 lazy val root = (project in file("."))
   .dependsOn(crawler)
+  .dependsOn(extractor)
   .settings(
     inThisBuild(List(
       organization := "services.xis.elastic",
