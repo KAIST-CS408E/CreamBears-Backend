@@ -19,26 +19,25 @@ object MaxGetter {
   case class Fail(requestId: Int)
 }
 
-class MaxGetter(implicit cookie: Cookie)
-  extends Actor with ActorLogging {
+class MaxGetter(implicit cookie: Cookie) extends Actor with ActorLogging {
   import MaxGetter._
 
   val id: Int = getId
 
   override def preStart(): Unit = {
-    log.info("MaxGetter {} started", id)
+    log.info("MaxGetter:{} starts", id)
   }
 
   override def postStop(): Unit = {
-    log.info("MaxGetter {} stoped", id)
+    log.info("MaxGetter:{} stops", id)
   }
 
   override def receive: Receive = {
     case Request(requestId) =>
-      log.info("MaxGetter {} receives request:{}", id, requestId)
+      log.info("MaxGetter:{} receives request:{}", id, requestId)
       getMaxOfToday match {
         case Some(max) =>
-          log.info("MaxGetter {} succeeds for request:{}", id, requestId)
+          log.info("MaxGetter:{} succeeds for request:{}", id, requestId)
           sender() ! Success(requestId, max)
         case None =>
           log.info("MaxGetter {} fails for request:{}", id, requestId)
