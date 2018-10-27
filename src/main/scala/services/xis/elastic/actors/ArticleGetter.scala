@@ -37,16 +37,16 @@ class ArticleGetter(implicit cookie: Cookie) extends Actor with ActorLogging {
 
   override def receive: Receive = {
     case Request(requestId, board, aid) =>
-      log.info("ArticleGetter:{} receives request:{} for {}/{}",
-        id, requestId, board, aid)
+      log.info("ArticleGetter:{} receives request:{} for {}",
+        id, requestId, aid)
       getArticle(board, aid) match {
         case Some(article) =>
-          log.info("ArticleGetter:{} succeeds for for {}/{} of request:{}",
-			      id, board, aid, requestId)
+          log.info("ArticleGetter:{} succeeds for {} of request:{}",
+            id, aid, requestId)
           sender() ! Success(requestId, board, aid, article)
         case None =>
-          log.warning("ArticleGetter:{} fails for for {}/{} of request:{}",
-			      id, board, aid, requestId)
+          log.warning("ArticleGetter:{} fails for {} of request:{}",
+            id, aid, requestId)
           sender() ! Failure(requestId, board, aid)
       }
   }

@@ -1,11 +1,6 @@
 package services.xis.elastic
 
-import java.lang.Boolean.{TRUE => True, FALSE => False}
-import java.io.IOException
-
 import scala.collection.JavaConverters._
-
-import services.xis.crawl.Article
 
 import org.apache.http.HttpHost
 
@@ -16,6 +11,8 @@ import org.elasticsearch.action.index.IndexRequest
 import org.elasticsearch.action.update.UpdateRequest
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest
+
+import services.xis.crawl.Article
 
 class Indexer(
   host: String, port0: Int, port1: Int, protocol: String,
@@ -29,7 +26,7 @@ class Indexer(
         new HttpHost(host, port1, protocol)
     ))
 
-  def createIndex: Unit = {
+  def createIndex(): Unit = {
     val getRequest = new GetIndexRequest().indices(index)
     val exists =
       safe(client.indices.exists(getRequest, RequestOptions.DEFAULT))
@@ -43,19 +40,19 @@ class Indexer(
         .settings(settings)
         .mapping(typ, mapping)
 
-      safe(client.indices.create(request, RequestOptions.DEFAULT))
+      client.indices.create(request, RequestOptions.DEFAULT)
     }
   }
 
   def articleExists(id: String): Boolean = {
     val request = new GetRequest(index, typ, id)
-    safe(client.exists(request, RequestOptions.DEFAULT))
+    client.exists(request, RequestOptions.DEFAULT)
   }
 
   def updateHits(id: String, hits: Int): Unit = {
     val request = new UpdateRequest(index, typ, id)
       .doc(JMap("hits" -> hits.toString))
-    safe(println(client.update(request, RequestOptions.DEFAULT)))
+    client.update(request, RequestOptions.DEFAULT)
   }
 
   def indexArticle(art: Article, att: String, img: String): Unit = {
@@ -72,26 +69,10 @@ class Indexer(
         "attached", att,
         "image", img
       )
-    safe(println(client.index(request, RequestOptions.DEFAULT)))
+    client.index(request, RequestOptions.DEFAULT)
   }
 
-  def close: Unit = client.close
-
-  private def safe(stat: => Boolean): Boolean =
-    try {
-      stat
-    } catch {
-      case e: IOException =>
-        System.err.println(e.getMessage)
-        false
-    }
-  private def safe(stat: => Any): Unit =
-    try {
-      stat
-    } catch {
-      case e: IOException =>
-        System.err.println(e.getMessage)
-    }
+  def close(): Unit = client.close()
 
   private def JMap(elems: (String, AnyRef)*) = Map(elems: _*).asJava
 
