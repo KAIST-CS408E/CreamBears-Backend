@@ -16,7 +16,7 @@ object MaxGetter {
 
   case class Request(requestId: Int)
   case class Success(requestId: Int, max: Int)
-  case class Fail(requestId: Int)
+  case class Failure(requestId: Int)
 }
 
 class MaxGetter(implicit cookie: Cookie) extends Actor with ActorLogging {
@@ -40,8 +40,8 @@ class MaxGetter(implicit cookie: Cookie) extends Actor with ActorLogging {
           log.info("MaxGetter:{} succeeds for request:{}", id, requestId)
           sender() ! Success(requestId, max)
         case None =>
-          log.info("MaxGetter {} fails for request:{}", id, requestId)
-          sender() ! Fail(requestId)
+          log.warning("MaxGetter {} fails for request:{}", id, requestId)
+          sender() ! Failure(requestId)
       }
   }
 }

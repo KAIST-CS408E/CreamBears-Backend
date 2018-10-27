@@ -14,7 +14,7 @@ object Main {
     val system = ActorSystem("index-system")
 
     try {
-      val manager = system.actorOf(CrawlManager.props(1, 10))
+      val manager = system.actorOf(CrawlManager.debugProps(100, 1, 5, 50))
       manager ! CrawlManager.Start
       while (StdIn.readLine().toLowerCase != "exit") ()
     } finally {
