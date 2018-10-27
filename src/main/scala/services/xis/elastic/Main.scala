@@ -21,18 +21,32 @@ object Main {
     indexer.createIndex()
 
     val system = ActorSystem("index-system")
-    val manager =
-      system.actorOf(
-        CrawlManager.debugProps(
-          pseudoMax = 100,
-          indexer = indexer,
-          maxWorkerNum = 1,
-          summaryWorkerNum = 3,
-          articleWorkerNum = 20,
-          fileWorkerNum = 5,
-          extractWorkerNum = 50,
-          readWorkerNum = 1,
-          writeWorkerNum = 10))
+
+    val manager = args.toList match {
+      case "--debug" :: Nil =>
+        system.actorOf(
+          CrawlManager.debugProps(
+            pseudoMax = 100,
+            indexer = indexer,
+            maxWorkerNum = 1,
+            summaryWorkerNum = 3,
+            articleWorkerNum = 20,
+            fileWorkerNum = 5,
+            extractWorkerNum = 50,
+            readWorkerNum = 1,
+            writeWorkerNum = 10))
+      case _ =>
+        system.actorOf(
+          CrawlManager.props(
+            indexer = indexer,
+            maxWorkerNum = 1,
+            summaryWorkerNum = 3,
+            articleWorkerNum = 20,
+            fileWorkerNum = 5,
+            extractWorkerNum = 50,
+            readWorkerNum = 1,
+            writeWorkerNum = 10))
+    }
     manager ! CrawlManager.Start
 
     try {
