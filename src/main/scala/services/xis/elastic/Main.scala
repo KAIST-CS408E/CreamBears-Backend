@@ -13,7 +13,7 @@ object Main {
   private val port0 = 9200
   private val port1 = 9300
   private val protocol = "http"
-  private val index = "portal5"
+  private val index = "portal2"
   private val typ = "article"
 
   def main(args: Array[String]): Unit = {
@@ -30,8 +30,9 @@ object Main {
           summaryWorkerNum = 3,
           articleWorkerNum = 20,
           fileWorkerNum = 5,
+          extractWorkerNum = 50,
           readWorkerNum = 1,
-          extractWorkerNum = 50))
+          writeWorkerNum = 10))
     manager ! CrawlManager.Start
 
     try {
@@ -41,38 +42,4 @@ object Main {
       indexer.close()
     }
   }
-
-//  def main(args: Array[String]): Unit = {
-//    val indexer = new Indexer(
-//      "localhost", 9200, 9300, "http",
-//      "portal4", "article"
-//    )
-//    val crawler = new Crawler
-//
-//    indexer.createIndex
-//    args.toList match {
-//      case "-s" :: Nil => while (true) run(indexer, crawler)
-//      case Nil => run(indexer, crawler)
-//      case _ =>
-//    }
-//    indexer.close
-//  }
-//
-//  def run(indexer: Indexer, crawler: Crawler): Unit = {
-//    crawler.summaries foreach {
-//      case ArticleSummary(board, id, hits) =>
-//        if (indexer.articleExists(id))
-//          indexer.updateHits(id, hits)
-//        else
-//          new Thread() {
-//            override def run(): Unit = {
-//              crawler.article(board, id) match {
-//                case Some((art, att, img)) =>
-//                  indexer.indexArticle(art, att, img)
-//                case _ =>
-//              }
-//            }
-//          }.start
-//    }
-//  }
 }

@@ -5,6 +5,7 @@ import scala.collection.JavaConverters._
 import org.apache.http.HttpHost
 
 import org.elasticsearch.client._
+import org.elasticsearch.common.unit.TimeValue
 import org.elasticsearch.common.settings.Settings
 import org.elasticsearch.action.get.GetRequest
 import org.elasticsearch.action.index.IndexRequest
@@ -12,7 +13,7 @@ import org.elasticsearch.action.update.UpdateRequest
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest
 
-import services.xis.crawl.Article
+import services.xis.crawl.ArticleSummary
 
 class Indexer(
   host: String, port0: Int, port1: Int, protocol: String,
@@ -48,14 +49,14 @@ class Indexer(
     client.exists(request, RequestOptions.DEFAULT)
   }
 
-  def updateHits(id: String, hits: Int): Unit = {
-    val request = new UpdateRequest(index, typ, id)
-      .doc(JMap("hits" -> hits.toString))
+  def updateHits(summ: ArticleSummary): Unit = {
+    val request = new UpdateRequest(index, typ, summ.id)
+      .doc(JMap("hits" -> summ.hits.toString))
     client.update(request, RequestOptions.DEFAULT)
   }
 
-  def indexArticle(art: Article, att: String, img: String): Unit = {
-    import art._
+  def indexArticle(artDoc: ArticleDocument): Unit = {
+    import artDoc.article._
     val request = new IndexRequest(index, typ, id)
       .source(
         "board", board,
@@ -65,9 +66,9 @@ class Indexer(
         "time", time,
         "hits", hits.toString,
         "content", content,
-        "attached", att,
-        "image", img
-      )
+        "attached", artDoc.attached,
+        "image", artDoc.image
+      ).timeout(new TimeValue(2 * 60 * 1000))
     client.index(request, RequestOptions.DEFAULT)
   }
 

@@ -17,13 +17,14 @@ object CrawlManager {
     summaryWorkerNum: Int,
     articleWorkerNum: Int,
     fileWorkerNum: Int,
+    extractWorkerNum: Int,
     readWorkerNum: Int,
-    extractWorkerNum: Int
+    writeWorkerNum: Int
   ): Props =
     Props(new CrawlManager(
       false, 0, indexer,
       maxWorkerNum, summaryWorkerNum, articleWorkerNum,
-      fileWorkerNum, readWorkerNum, extractWorkerNum
+      fileWorkerNum, extractWorkerNum, readWorkerNum, writeWorkerNum
     ))
 
   def debugProps(
@@ -33,13 +34,14 @@ object CrawlManager {
     summaryWorkerNum: Int,
     articleWorkerNum: Int,
     fileWorkerNum: Int,
+    extractWorkerNum: Int,
     readWorkerNum: Int,
-    extractWorkerNum: Int
+    writeWorkerNum: Int
   ): Props =
     Props(new CrawlManager(
       true, pseudoMax, indexer,
       maxWorkerNum, summaryWorkerNum, articleWorkerNum,
-      fileWorkerNum, readWorkerNum, extractWorkerNum
+      fileWorkerNum, extractWorkerNum, readWorkerNum, writeWorkerNum
     ))
 
   private[this] var id = -1
@@ -59,8 +61,9 @@ class CrawlManager(
   summaryWorkerNum: Int,
   articleWorkerNum: Int,
   fileWorkerNum: Int,
+  extractWorkerNum: Int,
   readWorkerNum: Int,
-  extractWorkerNum: Int
+  writeWorkerNum: Int
 ) extends Actor with ActorLogging {
   import CrawlManager._
 
@@ -71,11 +74,12 @@ class CrawlManager(
   private val summaryM = new WorkerManager[SummaryGetter.Request]
   private val articleM = new WorkerManager[ArticleGetter.Request]
   private val fileM = new WorkerManager[FileGetter.Request]
-  private val readM = new WorkerManager[ElasticReader.Request]
   private val extractM = new WorkerManager[TextExtractor.Request]
+  private val readM = new WorkerManager[ElasticReader.Request]
+  private val writeM = new WorkerManager[ElasticWriter.Request]
 
   private val managers =
-    List(maxM, summaryM, articleM, fileM, readM, extractM)
+    List(maxM, summaryM, articleM, fileM, extractM, readM, writeM)
 
   private val articles = MMap[String, ArticleDocument]()
 
@@ -85,8 +89,9 @@ class CrawlManager(
     summaryM.init(summaryWorkerNum, SummaryGetter.props)
     articleM.init(articleWorkerNum, ArticleGetter.props)
     fileM.init(fileWorkerNum, FileGetter.props)
-    readM.init(readWorkerNum, ElasticReader.props(indexer))
     extractM.init(extractWorkerNum, TextExtractor.props)
+    readM.init(readWorkerNum, ElasticReader.props(indexer))
+    writeM.init(writeWorkerNum, ElasticWriter.props(indexer))
     log.info("CrawlManager starts at {}", start)
   }
 
@@ -117,7 +122,7 @@ class CrawlManager(
       articleM.dealloc(sender())
       val artDoc = new ArticleDocument(article)
       if (artDoc.complete)
-        () // create document
+        writeM.pend(ElasticWriter.CreateRequest(getRequestId, artDoc))
       else {
         articles += (id -> artDoc)
         fileM.pend(artDoc.files.map(FileGetter.Request(getRequestId, id, _)))
@@ -130,24 +135,33 @@ class CrawlManager(
       fileM.dealloc(sender())
       extractM.pend(TextExtractor.Request(getRequestId, aid, meta, bytes))
 
-    case ElasticReader.Success(_, summ, exist) =>
-      readM.dealloc(sender())
-      if (exist)
-        () // update hits
-      else
-        articleM.pend(ArticleGetter.Request(getRequestId, summ.board, summ.id))
-    case ElasticReader.Failure(_, summ) =>
-      readM.dealloc(sender())
-      readM.pend(ElasticReader.Request(getRequestId, summ))
-
     case TextExtractor.Result(_, aid, meta, text) =>
       extractM.dealloc(sender())
       val artDoc = articles(aid)
       artDoc.add(meta, text)
       if (artDoc.complete) {
         articles -= aid
-        // crete document
+        writeM.pend(ElasticWriter.CreateRequest(getRequestId, artDoc))
       }
+
+    case ElasticReader.Success(_, summ, exist) =>
+      readM.dealloc(sender())
+      if (exist)
+        writeM.pend(ElasticWriter.UpdateRequest(getRequestId, summ))
+      else
+        articleM.pend(ArticleGetter.Request(getRequestId, summ.board, summ.id))
+    case ElasticReader.Failure(_, summ) =>
+      readM.dealloc(sender())
+      readM.pend(ElasticReader.Request(getRequestId, summ))
+
+    case ElasticWriter.Success(_) =>
+      writeM.dealloc(sender())
+    case ElasticWriter.CreateFailure(_, artDoc) =>
+      writeM.dealloc(sender())
+      writeM.pend(ElasticWriter.CreateRequest(getRequestId, artDoc))
+    case ElasticWriter.UpdateFailure(_, summ) =>
+      writeM.dealloc(sender())
+      writeM.pend(ElasticWriter.UpdateRequest(getRequestId, summ))
   }
 
   override def receive: Receive = _receive andThen { _ => manageWorkers() }
