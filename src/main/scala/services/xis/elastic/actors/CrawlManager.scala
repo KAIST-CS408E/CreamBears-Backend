@@ -1,9 +1,10 @@
 package services.xis.elastic.actors
 
-import scala.collection.mutable.{Queue, Set => MSet}
+import scala.collection.mutable.{Queue, Map => MMap, Set => MSet}
 
 import akka.actor.{Actor, ActorLogging, Props, ActorRef}
 
+import services.xis.elastic.WorkerManager
 import services.xis.crawl.ConnectUtil.Cookie
 import services.xis.crawl.LoginUtil.login
 import services.xis.crawl.CrawlUtil.getMaxOfToday
@@ -15,7 +16,7 @@ object CrawlManager {
     summaryWorkerNum: Int,
     articleWorkerNum: Int//,
 //    fileWorkerNum: Int
-  )(implicit cookie: Cookie): Props =
+  ): Props =
     Props(new CrawlManager(false, 0, maxWorkerNum, summaryWorkerNum, articleWorkerNum))//, fileWorkerNum))
 
   def debugProps(
@@ -24,7 +25,7 @@ object CrawlManager {
     summaryWorkerNum: Int,
     articleWorkerNum: Int//,
 //    fileWorkerNum: Int
-  )(implicit cookie: Cookie): Props =
+  ): Props =
     Props(new CrawlManager(true, pseudoMax, maxWorkerNum, summaryWorkerNum, articleWorkerNum))//, fileWorkerNum))
 
   private[this] var id = -1
@@ -43,31 +44,23 @@ class CrawlManager(
   summaryWorkerNum: Int,
   articleWorkerNum: Int//,
 //  fileWorkerNum: Int
-)(implicit cookie: Cookie) extends Actor with ActorLogging {
+) extends Actor with ActorLogging {
   import CrawlManager._
 
   private val start = System.currentTimeMillis
+  private implicit val cookie: Cookie = MMap()
 
-  private val maxIdleQ: Queue[ActorRef] = Queue()
-  private val maxWorkingSet: MSet[ActorRef] = MSet()
-  private val maxPendingQ: Queue[MaxGetter.Request] = Queue()
+  private val maxM = new WorkerManager[MaxGetter.Request]
+  private val summaryM = new WorkerManager[SummaryGetter.Request]
+  private val articleM = new WorkerManager[ArticleGetter.Request]
 
-  private val summaryIdleQ: Queue[ActorRef] = Queue()
-  private val summaryWorkingSet: MSet[ActorRef] = MSet()
-  private val summaryPendingQ: Queue[SummaryGetter.Request] = Queue()
-
-  private val articleIdleQ: Queue[ActorRef] = Queue()
-  private val articleWorkingSet: MSet[ActorRef] = MSet()
-  private val articlePendingQ: Queue[ArticleGetter.Request] = Queue()
+  private val managers = List(maxM, summaryM, articleM)
 
   override def preStart(): Unit = {
     login
-    for (i <- 1 to maxWorkerNum)
-      maxIdleQ += context.actorOf(MaxGetter.props)
-    for (i <- 1 to summaryWorkerNum)
-      summaryIdleQ += context.actorOf(SummaryGetter.props)
-    for (i <- 1 to articleWorkerNum)
-      articleIdleQ += context.actorOf(ArticleGetter.props)
+    maxM.init(maxWorkerNum, MaxGetter.props)
+    summaryM.init(summaryWorkerNum, SummaryGetter.props)
+    articleM.init(articleWorkerNum, ArticleGetter.props)
     log.info("CrawlManager starts at {}", start)
   }
 
@@ -77,67 +70,40 @@ class CrawlManager(
     log.info("CrawlManager worked for {} ms", end - start)
   }
 
-  override def receive: Receive = {
+  private val _receive: Receive = {
     case Start =>
-      maxPendingQ += MaxGetter.Request(getRequestId)
-      manageWorkers()
+      maxM.pend(MaxGetter.Request(getRequestId))
 
     case MaxGetter.Success(_, max) =>
-      maxWorkingSet -= sender()
-      maxIdleQ += sender()
-      summaryPendingQ ++=
-//        (1 to max).map(SummaryGetter.Request(getRequestId, _))
+      maxM.dealloc(sender())
+      summaryM.pend(
         (1 to (if (debug) pseudoMax else 100))
-          .map(SummaryGetter.Request(getRequestId, _))
-      manageWorkers()
+          .map(SummaryGetter.Request(getRequestId, _)))
     case MaxGetter.Failure(_) =>
-      maxWorkingSet -= sender()
-      maxIdleQ += sender()
-      maxPendingQ += MaxGetter.Request(getRequestId)
-      manageWorkers()
+      maxM.dealloc(sender())
+      maxM.pend(MaxGetter.Request(getRequestId))
 
     case SummaryGetter.Result(_, _, summaries) =>
-      summaryWorkingSet -= sender()
-      summaryIdleQ += sender()
-      articlePendingQ ++=
+      summaryM.dealloc(sender())
+      articleM.pend(
         summaries.map{
           case ArticleSummary(id, board, _) =>
             ArticleGetter.Request(getRequestId, id, board)
-        }
-      manageWorkers()
+        })
 
     case ArticleGetter.Success(_, _, _, article) =>
-      articleWorkingSet -= sender()
-      articleIdleQ += sender()
+      articleM.dealloc(sender())
       log.debug("Succ: {}", article.title)
-      manageWorkers()
     case ArticleGetter.Failure(_, board, id) =>
-      articleWorkingSet -= sender()
-      articleIdleQ += sender()
-      articlePendingQ += ArticleGetter.Request(getRequestId, board, id)
-      manageWorkers()
+      articleM.dealloc(sender())
+      articleM.pend(ArticleGetter.Request(getRequestId, board, id))
   }
 
+  override def receive: Receive = _receive andThen { _ => manageWorkers() }
+
   private def manageWorkers(): Unit = {
-    def _manage[T](
-      idleQ: Queue[ActorRef], workingSet: MSet[ActorRef], pendingQ: Queue[T]
-    ): Unit = {
-      while (idleQ.nonEmpty && pendingQ.nonEmpty) {
-        val ref = idleQ.dequeue
-        workingSet += ref
-        ref ! pendingQ.dequeue
-      }
-    }
-
-    _manage(maxIdleQ, maxWorkingSet, maxPendingQ)
-    _manage(summaryIdleQ, summaryWorkingSet, summaryPendingQ)
-    _manage(articleIdleQ, articleWorkingSet, articlePendingQ)
-
-    if (List(
-      maxWorkingSet, maxPendingQ,
-      summaryWorkingSet, summaryPendingQ,
-      articleWorkingSet, articlePendingQ,
-    ).forall(_.isEmpty))
+    managers.foreach(_.alloc)
+    if (managers.forall(_.isFinish))
       context.stop(self)
   }
 }

@@ -10,7 +10,6 @@ import services.xis.crawl.ConnectUtil.Cookie
 
 object Main {
   def main(args: Array[String]): Unit = {
-    implicit val cookie: Cookie = MMap()
     val system = ActorSystem("index-system")
 
     try {
