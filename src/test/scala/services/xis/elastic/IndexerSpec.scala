@@ -33,4 +33,15 @@ class IndexerSpec extends TestKit(ActorSystem("IndexerSpec"))
     response.requestId should ===(42)
     response.max should be >= 2329
   }
+
+  "IndexGetter should work" in {
+    val probe = TestProbe()
+    val maxGetter = system.actorOf(SummaryGetter.props)
+
+    maxGetter.tell(SummaryGetter.Request(42, 1), probe.ref)
+    val response = probe.expectMsgType[SummaryGetter.Result]
+    response.requestId should ===(42)
+    response.page should ===(1)
+    response.summaries should have length 15
+  }
 }
