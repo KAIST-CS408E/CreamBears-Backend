@@ -12,5 +12,7 @@ lazy val root = (project in file("."))
     name := "xis-elastic",
     javacOptions ++= Seq("-encoding", "UTF-8"),
     libraryDependencies += scalaTest % Test,
-    libraryDependencies += elasticSearch
+    libraryDependencies += elasticSearch,
+    libraryDependencies += akkaActor,
+    libraryDependencies += akkaTest,
   )
