@@ -28,8 +28,7 @@ class Indexer(
 
   def createIndex(): Unit = {
     val getRequest = new GetIndexRequest().indices(index)
-    val exists =
-      safe(client.indices.exists(getRequest, RequestOptions.DEFAULT))
+    val exists = client.indices.exists(getRequest, RequestOptions.DEFAULT)
 
     if (!exists) {
       val settings = Settings.builder

@@ -19,9 +19,9 @@ object ElasticReader {
     id
   }
 
-  case class Request(requestId: Int, summ: ArticleSummary)
-  case class Success(requestId: Int, summ: ArticleSummary, exist: Boolean)
-  case class Failure(requestId: Int, summ: ArticleSummary)
+  case class Request(requestId: Int, summary: ArticleSummary)
+  case class Success(requestId: Int, summary: ArticleSummary, exist: Boolean)
+  case class Failure(requestId: Int, summary: ArticleSummary)
 }
 
 class ElasticReader(indexer: Indexer) extends Actor with ActorLogging {
