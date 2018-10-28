@@ -43,6 +43,7 @@ class FileGetter(implicit cookie: Cookie) extends Actor with ActorLogging {
           getFile(meta.link)
         } catch {
           case _: IOException => Array[Byte]()
+          case _: IllegalArgumentException => Array[Byte]()
         }
       log.info("FileGetter:{} obtains for {} of request:{}",
         id, aid, requestId)

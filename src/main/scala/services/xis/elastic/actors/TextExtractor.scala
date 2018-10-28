@@ -37,7 +37,8 @@ class TextExtractor extends Actor with ActorLogging {
     case Request(requestId, aid, meta, bytes) =>
       log.info("TextExtractor:{} receives request:{} for {}",
         id, requestId, aid)
-      val text = Extractor.extract(meta.name, bytes)
+      val text =
+        if (bytes.nonEmpty) Extractor.extract(meta.name, bytes) else ""
       log.info("TextExtractor:{} obtains for {} of request:{}",
         id, aid, requestId)
       sender() ! Result(requestId, aid, meta, text)
