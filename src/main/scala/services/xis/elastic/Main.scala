@@ -23,10 +23,11 @@ object Main {
     val system = ActorSystem("index-system")
 
     val manager = args.toList match {
-      case "--debug" :: Nil =>
+      case "--debug" :: start :: end :: Nil =>
         system.actorOf(
           CrawlManager.debugProps(
-            pseudoMax = 100,
+            start = start.toInt,
+            end = end.toInt,
             indexer = indexer,
             maxWorkerNum = 1,
             summaryWorkerNum = 3,
@@ -50,7 +51,8 @@ object Main {
     manager ! CrawlManager.Start
 
     try {
-      while (StdIn.readLine().toLowerCase != "exit") ()
+      while (StdIn.readLine().toLowerCase != "exit")
+        manager ! CrawlManager.Info
     } finally {
       system.terminate()
       indexer.close()

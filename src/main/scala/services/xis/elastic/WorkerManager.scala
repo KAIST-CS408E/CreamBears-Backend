@@ -29,4 +29,7 @@ class WorkerManager[T](implicit context: ActorContext, self: ActorRef) {
   }
 
   def isFinish: Boolean = workingSet.isEmpty && pendingQ.isEmpty
+
+  def workingSize: Int = workingSet.size
+  def pendingSize: Int = pendingQ.size
 }

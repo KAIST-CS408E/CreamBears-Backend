@@ -22,13 +22,14 @@ object CrawlManager {
     writeWorkerNum: Int
   ): Props =
     Props(new CrawlManager(
-      false, 0, indexer,
+      false, 0, 0, indexer,
       maxWorkerNum, summaryWorkerNum, articleWorkerNum,
       fileWorkerNum, extractWorkerNum, readWorkerNum, writeWorkerNum
     ))
 
   def debugProps(
-    pseudoMax: Int,
+    start: Int,
+    end: Int,
     indexer: Indexer,
     maxWorkerNum: Int,
     summaryWorkerNum: Int,
@@ -39,7 +40,7 @@ object CrawlManager {
     writeWorkerNum: Int
   ): Props =
     Props(new CrawlManager(
-      true, pseudoMax, indexer,
+      true, start, end, indexer,
       maxWorkerNum, summaryWorkerNum, articleWorkerNum,
       fileWorkerNum, extractWorkerNum, readWorkerNum, writeWorkerNum
     ))
@@ -51,11 +52,13 @@ object CrawlManager {
   }
 
   case object Start
+  case object Info
 }
 
 class CrawlManager(
   debug: Boolean,
-  pseudoMax: Int,
+  start: Int,
+  end: Int,
   indexer: Indexer,
   maxWorkerNum: Int,
   summaryWorkerNum: Int,
@@ -67,7 +70,7 @@ class CrawlManager(
 ) extends Actor with ActorLogging {
   import CrawlManager._
 
-  private val start = System.currentTimeMillis
+  private val startTime = System.currentTimeMillis
   private implicit val cookie: Cookie = MMap()
 
   private val maxM = new WorkerManager[MaxGetter.Request]
@@ -92,24 +95,25 @@ class CrawlManager(
     extractM.init(extractWorkerNum, TextExtractor.props)
     readM.init(readWorkerNum, ElasticReader.props(indexer))
     writeM.init(writeWorkerNum, ElasticWriter.props(indexer))
-    log.info("CrawlManager starts at {}", start)
+    log.info("CrawlManager starts at {}", startTime)
   }
 
   override def postStop(): Unit = {
-    val end = System.currentTimeMillis
-    log.info("CrawlManager stops at {}", end)
-    log.info("CrawlManager worked for {} ms", end - start)
+    val endTime = System.currentTimeMillis
+    log.info("CrawlManager stops at {}", endTime)
+    log.info("CrawlManager worked for {} ms", endTime - startTime)
   }
 
   private val _receive: Receive = {
     case Start =>
       maxM.pend(MaxGetter.Request(getRequestId))
+    case Info =>
+      log.info("{}", managers.map(m => (m.workingSize, m.pendingSize)).mkString("\n"))
 
     case MaxGetter.Success(_, max) =>
       maxM.dealloc(sender())
-      summaryM.pend(
-        (1 to (if (debug) pseudoMax else max))
-          .map(SummaryGetter.Request(getRequestId, _)))
+      val pages = (1 to max).filter(p => !debug || (start <= p && p <= end))
+      summaryM.pend(pages.map(SummaryGetter.Request(getRequestId, _)))
     case MaxGetter.Failure(_) =>
       maxM.dealloc(sender())
       maxM.pend(MaxGetter.Request(getRequestId))
