@@ -2,6 +2,8 @@ package services.xis.elastic
 
 import scala.collection.JavaConverters._
 
+import org.joda.time.format.DateTimeFormat
+
 import org.apache.http.HttpHost
 
 import org.elasticsearch.client._
@@ -20,6 +22,7 @@ class Indexer(
   index: String, typ: String
 ) {
   private val analyzer = "openkoreantext-analyzer"
+  private val format = DateTimeFormat.forPattern("yyyy.MM.dd HH:mm:ss")
 
   private val client: RestHighLevelClient =
     new RestHighLevelClient(RestClient.builder(
@@ -57,13 +60,14 @@ class Indexer(
 
   def indexArticle(artDoc: ArticleDocument): Unit = {
     import artDoc.article._
+
     val request = new IndexRequest(index, typ, id)
       .source(
         "board", board,
         "title", title,
         "author", author,
         "department", department,
-        "time", time,
+        "time", format.parseDateTime(time).toDate,
         "hits", hits.toString,
         "content", content,
         "attached", artDoc.attached,
@@ -91,8 +95,7 @@ class Indexer(
       "type" -> "keyword"
     ),
     "time" -> JMap(
-      "type" -> "date",
-      "format" -> "yyyy.MM.dd HH:mm:ss"
+      "type" -> "date"
     ),
     "hits" -> JMap(
       "type" -> "integer"

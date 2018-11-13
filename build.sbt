@@ -15,4 +15,5 @@ lazy val root = (project in file("."))
     libraryDependencies += elasticSearch,
     libraryDependencies += akkaActor,
     libraryDependencies += akkaTest,
+    libraryDependencies += jodaTime
   )
