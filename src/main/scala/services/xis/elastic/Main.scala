@@ -16,35 +16,45 @@ object Main {
 
   def main(args: Array[String]): Unit = (args.toList match {
     case index :: typ :: tail =>
-      val indexer = new Indexer(host, port0, port1, protocol, index, typ)
+      val _indexer = new Indexer(host, port0, port1, protocol, index, typ)
       val system = ActorSystem("index-system")
-      val manager = tail match {
-        case "--debug" :: start :: end :: Nil =>
-          system.actorOf(
-            CrawlManager.debugProps(
-              start = start.toInt,
-              end = end.toInt,
-              indexer = indexer,
-              maxWorkerNum = 1,
-              summaryWorkerNum = 3,
-              articleWorkerNum = 20,
-              fileWorkerNum = 5,
-              extractWorkerNum = 50,
-              readWorkerNum = 1,
-              writeWorkerNum = 10))
+      val (indexer0, manager) = tail match {
+        case "--debug" :: start :: end :: tail1 =>
+          val __indexer = tail1 match {
+            case startD :: endD :: Nil =>
+              _indexer.close()
+              new Indexer(
+                host, port0, port1, protocol, index, typ, startD, endD
+              )
+            case _ => _indexer
+          }
+          (__indexer,
+            system.actorOf(
+              CrawlManager.debugProps(
+                start = start.toInt,
+                end = end.toInt,
+                indexer = __indexer,
+                maxWorkerNum = 1,
+                summaryWorkerNum = 3,
+                articleWorkerNum = 20,
+                fileWorkerNum = 5,
+                extractWorkerNum = 50,
+                readWorkerNum = 1,
+                writeWorkerNum = 10)))
         case _ =>
-          system.actorOf(
-            CrawlManager.props(
-              indexer = indexer,
-              maxWorkerNum = 1,
-              summaryWorkerNum = 3,
-              articleWorkerNum = 20,
-              fileWorkerNum = 5,
-              extractWorkerNum = 50,
-              readWorkerNum = 1,
-              writeWorkerNum = 10))
+          (_indexer,
+            system.actorOf(
+              CrawlManager.props(
+                indexer = _indexer,
+                maxWorkerNum = 1,
+                summaryWorkerNum = 3,
+                articleWorkerNum = 20,
+                fileWorkerNum = 5,
+                extractWorkerNum = 50,
+                readWorkerNum = 1,
+                writeWorkerNum = 10)))
       }
-      Some(system, indexer, manager)
+      Some(system, indexer0, manager)
     case _ => None
   }).map{ case (system, indexer, manager) =>
     indexer.createIndex()

@@ -19,10 +19,15 @@ import services.xis.crawl.ArticleSummary
 
 class Indexer(
   host: String, port0: Int, port1: Int, protocol: String,
-  index: String, typ: String
+  index: String, typ: String,
+  startD: String = "20000101000000", endD: String = "20991231235959"
 ) {
   private val analyzer = "openkoreantext-analyzer"
   private val format = DateTimeFormat.forPattern("yyyy.MM.dd HH:mm:ss")
+  private val format1 = DateTimeFormat.forPattern("yyyyMMddHHmmss")
+
+  private val start = format1.parseDateTime(startD)
+  private val end = format1.parseDateTime(endD)
 
   private val client: RestHighLevelClient =
     new RestHighLevelClient(RestClient.builder(
@@ -36,8 +41,8 @@ class Indexer(
 
     if (!exists) {
       val settings = Settings.builder
-        .put("index.number_of_shards", 1)
-        .put("index.number_of_replicas", 0)
+        .put("index.number_of_shards", 3)
+        .put("index.number_of_replicas", 2)
 
       val request = new CreateIndexRequest(index)
         .settings(settings)
@@ -61,19 +66,23 @@ class Indexer(
   def indexArticle(artDoc: ArticleDocument): Unit = {
     import artDoc.article._
 
-    val request = new IndexRequest(index, typ, id)
-      .source(
-        "board", board,
-        "title", title,
-        "author", author,
-        "department", department,
-        "time", format.parseDateTime(time).toDate,
-        "hits", hits.toString,
-        "content", content,
-        "attached", artDoc.attached,
-        "image", artDoc.image
-      ).timeout(new TimeValue(2 * 60 * 1000))
-    client.index(request, RequestOptions.DEFAULT)
+    val dateTime = format.parseDateTime(time)
+
+    if ((start isBefore dateTime) && (dateTime isBefore end)) {
+      val request = new IndexRequest(index, typ, id)
+        .source(
+          "board", board,
+          "title", title,
+          "author", author,
+          "department", department,
+          "time", dateTime.toDate,
+          "hits", hits.toString,
+          "content", content,
+          "attached", artDoc.attached,
+          "image", artDoc.image
+        ).timeout(new TimeValue(2 * 60 * 1000))
+      client.index(request, RequestOptions.DEFAULT)
+    }
   }
 
   def close(): Unit = client.close()
